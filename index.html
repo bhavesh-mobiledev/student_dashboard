@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Student Performance Dashboard · EduPredict</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="student_dashboard/static/css/style.css">
+  <link rel="stylesheet" href="static/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    /* Tab switcher for standalone Go Live mode */
+    .view-panel { display: none; }
+    .view-panel.active-panel { display: block; }
+  </style>
+</head>
+<body>
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar" id="app-sidebar">
+    <div class="sidebar-top">
+      <div class="brand">
+        <span class="dot"></span>
+        <span>EduPredict</span>
+      </div>
+      <button class="mobile-toggle-btn" onclick="toggleSidebarMenu()" aria-label="Toggle navigation">
+        <span id="menu-icon">☰</span>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <a href="#overview" class="active" id="nav-overview" onclick="switchTab('overview')">📊 Overview</a>
+      <a href="#students" id="nav-students" onclick="switchTab('students')">🎓 Students</a>
+      <a href="#predict" id="nav-predict" onclick="switchTab('predict')">🔮 Predict</a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <a class="logout" href="/login" id="login-link">🔐 Admin Sign In</a>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <span class="icon">🌙</span><span class="label">Dark</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Main Content ── -->
+  <main class="content">
+
+    <!-- Live Server info pill (only shown if opened via VS Code Live Server on port 5500) -->
+    <div id="live-info" class="card" style="display:none; padding:10px 16px; margin-bottom:18px; font-size:12px; align-items:center; justify-content:space-between; border-color:rgba(99,102,241,0.3);">
+      <span>⚡ Running via <strong>VS Code Live Server</strong>. Connected to embedded cohort analytics. To modify records, run <code>python app.py</code> and sign in.</span>
+      <a href="http://localhost:5000/" target="_blank" class="btn primary" style="padding:4px 10px; font-size:11px;">Open Flask Server →</a>
+    </div>
+
+    <!-- ════════ PANEL 1: OVERVIEW (DASHBOARD) ════════ -->
+    <section id="panel-overview" class="view-panel active-panel">
+      <header class="topbar">
+        <div>
+          <h1>Overview</h1>
+          <p class="muted">Cohort performance, risk radar and regression model insights</p>
+        </div>
+      </header>
+
+      <section class="kpis">
+        <div class="card kpi"><span class="label">Total Students</span><strong id="k-total">150</strong></div>
+        <div class="card kpi"><span class="label">Average Score</span><strong id="k-avg">50.2</strong></div>
+        <div class="card kpi"><span class="label">Pass Rate</span><strong id="k-pass">84.0%</strong></div>
+        <div class="card kpi"><span class="label">Avg Attendance</span><strong id="k-att">78.4%</strong></div>
+        <div class="card kpi risk"><span class="label">Predicted At Risk</span><strong id="k-risk">80</strong></div>
+      </section>
+
+      <section class="grid two">
+        <div class="card">
+          <h3>Score Distribution</h3>
+          <div class="chart"><canvas id="c-dist"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Average Score by Department</h3>
+          <div class="chart"><canvas id="c-dept"></canvas></div>
+        </div>
+      </section>
+
+      <section class="grid two">
+        <div class="card">
+          <h3>Attendance vs Final Score</h3>
+          <div class="chart"><canvas id="c-scatter"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Predicted Risk Levels</h3>
+          <div class="chart"><canvas id="c-risk"></canvas></div>
+        </div>
+      </section>
+
+      <section class="grid two">
+        <div class="card">
+          <h3>Model Performance (Ridge Regression)</h3>
+          <div id="model-box">
+            <div class="model-stats">
+              <div><span class="label">R² Fit</span><strong>0.788</strong></div>
+              <div><span class="label">RMSE Error</span><strong>4.21</strong></div>
+              <div><span class="label">Sample Size</span><strong>150</strong></div>
+            </div>
+            <p class="muted small" style="margin-bottom:12px">Feature Influence</p>
+            <div class="bar-row"><span>Study Hours</span><div class="bar"><i style="width:35.5%"></i></div><b>35.5%</b></div>
+            <div class="bar-row"><span>Previous Score</span><div class="bar"><i style="width:28.5%"></i></div><b>28.5%</b></div>
+            <div class="bar-row"><span>Attendance</span><div class="bar"><i style="width:20.4%"></i></div><b>20.4%</b></div>
+            <div class="bar-row"><span>Assignment Score</span><div class="bar"><i style="width:15.6%"></i></div><b>15.6%</b></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Highest-Risk Students</h3>
+          <table class="table" id="risk-table">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Roll no</th>
+                <th class="num">Predicted</th>
+              </tr>
+            </thead>
+            <tbody id="risk-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <!-- ════════ PANEL 2: STUDENTS ════════ -->
+    <section id="panel-students" class="view-panel">
+      <header class="topbar">
+        <div>
+          <h1>Students</h1>
+          <p class="muted">Manage cohort records and view individual predicted outcomes</p>
+        </div>
+        <div class="actions">
+          <input id="search" class="search" placeholder="Search name or roll no…">
+          <button class="btn primary" onclick="onAddStudentClick()">+ Add student</button>
+        </div>
+      </header>
+
+      <div class="card flush">
+        <table class="table" id="tbl">
+          <thead>
+            <tr>
+              <th>Name</th><th>Roll no</th><th>Department</th>
+              <th class="num">Attend.</th><th class="num">Study h</th><th class="num">Prev.</th>
+              <th class="num">Assign.</th>
+              <th class="num">Final</th><th class="num">Predicted</th><th>Risk</th>
+            </tr>
+          </thead>
+          <tbody id="students-tbody"></tbody>
+        </table>
+        <div id="none" class="empty" hidden>No students found.</div>
+      </div>
+    </section>
+
+    <!-- ════════ PANEL 3: PREDICT ════════ -->
+    <section id="panel-predict" class="view-panel">
+      <header class="topbar">
+        <div>
+          <h1>Predict</h1>
+          <p class="muted">Estimate a student's final score from their current indicators</p>
+        </div>
+      </header>
+
+      <section class="grid two">
+        <form class="card" id="pform" onsubmit="return false;">
+          <h3>Student indicators</h3>
+          <div class="sliders" style="display:flex; flex-direction:column; gap:16px;">
+            <label>Attendance <output id="out-att">75</output>%
+              <input type="range" id="in-att" min="0" max="100" step="1" value="75"></label>
+            <label>Study hours / day <output id="out-study">3.5</output>
+              <input type="range" id="in-study" min="0" max="10" step="0.5" value="3.5"></label>
+            <label>Previous score <output id="out-prev">60</output>
+              <input type="range" id="in-prev" min="0" max="100" step="1" value="60"></label>
+            <label>Assignment score <output id="out-assign">65</output>
+              <input type="range" id="in-assign" min="0" max="100" step="1" value="65"></label>
+          </div>
+          <button class="btn primary" style="margin-top:20px;" onclick="doPredict()">Predict score</button>
+        </form>
+
+        <div class="card result">
+          <h3>Prediction Outcome</h3>
+          <div class="big" id="r-score">57.2</div>
+          <div id="r-risk"><span class="pill Medium">Medium risk</span></div>
+          <p class="muted small" id="r-note" style="margin-top:14px;">Linear regression model · R² 0.788</p>
+        </div>
+      </section>
+    </section>
+
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- ── Dashboard Scripts & Demo Data ── -->
+  <script>
+    /* Theme Toggle */
+    (function () {
+      const root = document.documentElement;
+      const stored = localStorage.getItem('theme');
+      if (stored) root.setAttribute('data-theme', stored);
+      function getTheme() { return root.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+      function applyTheme(t) {
+        root.setAttribute('data-theme', t);
+        localStorage.setItem('theme', t);
+        document.querySelectorAll('.theme-toggle').forEach(btn => {
+          btn.querySelector('.icon').textContent = t === 'dark' ? '☀️' : '🌙';
+          btn.querySelector('.label').textContent = t === 'dark' ? 'Light' : 'Dark';
+        });
+      }
+      window.toggleTheme = function () { applyTheme(getTheme() === 'dark' ? 'light' : 'dark'); };
+      document.addEventListener('DOMContentLoaded', () => applyTheme(getTheme()));
+    })();
+
+    function toggleSidebarMenu() {
+      const nav = document.getElementById('sidebar-nav');
+      const bottom = document.querySelector('.sidebar-bottom');
+      const icon = document.getElementById('menu-icon');
+      if (nav) {
+        nav.classList.toggle('show-mobile');
+        if (bottom) bottom.classList.toggle('show-mobile');
+        if (icon) icon.textContent = nav.classList.contains('show-mobile') ? '✕' : '☰';
+      }
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active-panel'));
+      document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+      const targetPanel = document.getElementById('panel-' + tab);
+      const targetNav = document.getElementById('nav-' + tab);
+      if (targetPanel) targetPanel.classList.add('active-panel');
+      if (targetNav) targetNav.classList.add('active');
+      const nav = document.getElementById('sidebar-nav');
+      if (nav && nav.classList.contains('show-mobile')) toggleSidebarMenu();
+    }
+
+    function toast(msg, isError = false) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.className = "toast show" + (isError ? " error" : "");
+      setTimeout(() => t.classList.remove("show"), 2800);
+    }
+
+    const isLiveServer = (window.location.port === '5500' || window.location.protocol === 'file:');
+    const API_BASE = isLiveServer ? 'http://localhost:5000' : '';
+
+    function onAddStudentClick() {
+      toast("Admin sign in required to add new records. Redirecting to login...", false);
+      const target = API_BASE ? (API_BASE + '/login') : '/login';
+      setTimeout(() => { window.location.href = target; }, 1000);
+    }
+
+    /* Embedded Realistic Cohort */
+    const FIRST_NAMES = ["Aarav","Vivaan","Aditya","Ishaan","Rohan","Kabir","Arjun","Riya","Ananya","Diya","Meera","Sana","Priya","Neha","Kavya","Tara","Aisha","Pooja","Yash","Nikhil"];
+    const LAST_NAMES = ["Sharma","Patil","Deshmukh","Verma","Khan","Gupta","Joshi","Iyer","Singh","Mehta"];
+    const DEPTS = ["Computer Science","Mechanical","Electronics","Civil","Business"];
+
+    function computePred(att, study, prev, assign) {
+      const raw = 0.30 * prev + 0.22 * att + 3.2 * study + 0.18 * assign - 8;
+      const final = Math.max(5, Math.min(100, raw));
+      return Math.round(final * 10) / 10;
+    }
+    function getRisk(score) {
+      if (score < 50) return "High";
+      if (score < 65) return "Medium";
+      return "Low";
+    }
+
+    let allStudents = [];
+    for (let i = 0; i < 150; i++) {
+      const att = Math.round((60 + Math.random() * 38) * 10) / 10;
+      const study = Math.round((1.5 + Math.random() * 6.5) * 10) / 10;
+      const prev = Math.round((40 + Math.random() * 55) * 10) / 10;
+      const assign = Math.round((45 + Math.random() * 50) * 10) / 10;
+      const pred = computePred(att, study, prev, assign);
+      allStudents.push({
+        _id: "s_" + (1000 + i),
+        name: FIRST_NAMES[i % FIRST_NAMES.length] + " " + LAST_NAMES[i % LAST_NAMES.length],
+        roll_no: "STU" + (1000 + i),
+        department: DEPTS[i % DEPTS.length],
+        attendance: att,
+        study_hours: study,
+        previous_score: prev,
+        assignment_score: assign,
+        final_score: pred,
+        predicted: pred,
+        risk: getRisk(pred)
+      });
+    }
+
+    /* Live Server Banner Check (only shows on port 5500) */
+    if (isLiveServer) {
+      const liveInfo = document.getElementById('live-info');
+      if (liveInfo) liveInfo.style.display = 'flex';
+      const loginLink = document.getElementById('login-link');
+      if (loginLink) loginLink.href = 'http://localhost:5000/login';
+    }
+
+    /* Render Students Table */
+    function renderStudents(list) {
+      const tbody = document.getElementById('students-tbody');
+      tbody.innerHTML = list.map(r => `
+        <tr>
+          <td>${r.name}</td><td>${r.roll_no}</td><td>${r.department}</td>
+          <td class="num">${r.attendance}</td><td class="num">${r.study_hours}</td><td class="num">${r.previous_score}</td>
+          <td class="num">${r.assignment_score}</td>
+          <td class="num">${r.final_score}</td><td class="num">${r.predicted}</td>
+          <td><span class="pill ${r.risk}">${r.risk}</span></td>
+        </tr>
+      `).join('');
+    }
+    renderStudents(allStudents);
+
+    /* Render Top Risk */
+    const sortedByRisk = [...allStudents].sort((a,b) => a.predicted - b.predicted).slice(0, 5);
+    document.getElementById('risk-tbody').innerHTML = sortedByRisk.map(r => `
+      <tr>
+        <td>${r.name}</td>
+        <td>${r.roll_no}</td>
+        <td class="num"><span class="pill High">${r.predicted}</span></td>
+      </tr>
+    `).join('');
+
+    /* Search Filter */
+    document.getElementById('search').addEventListener('input', e => {
+      const q = e.target.value.toLowerCase().trim();
+      const filtered = allStudents.filter(s => s.name.toLowerCase().includes(q) || s.roll_no.toLowerCase().includes(q));
+      renderStudents(filtered);
+    });
+
+    /* Live Predict Tab */
+    function doPredict() {
+      const att = parseFloat(document.getElementById('in-att').value);
+      const study = parseFloat(document.getElementById('in-study').value);
+      const prev = parseFloat(document.getElementById('in-prev').value);
+      const assign = parseFloat(document.getElementById('in-assign').value);
+      const p = computePred(att, study, prev, assign);
+      const r = getRisk(p);
+      document.getElementById('r-score').textContent = p;
+      document.getElementById('r-risk').innerHTML = `<span class="pill ${r}">${r} risk</span>`;
+    }
+
+    ['in-att','in-study','in-prev','in-assign'].forEach(id => {
+      const el = document.getElementById(id);
+      const out = el.parentElement.querySelector('output');
+      el.addEventListener('input', () => {
+        out.textContent = el.value;
+        doPredict();
+      });
+    });
+
+    /* Chart.js Setup */
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const textColor = isLight ? '#334155' : 'rgba(255,255,255,0.7)';
+    const gridColor = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)';
+
+    Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+    Chart.defaults.color = textColor;
+    Chart.defaults.borderColor = gridColor;
+
+    const baseOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
+
+    new Chart(document.getElementById("c-dist"), {
+      type: "bar",
+      data: {
+        labels: ["0-39", "40-49", "50-59", "60-69", "70-79", "80-100"],
+        datasets: [{
+          data: [24, 47, 62, 15, 2, 0],
+          backgroundColor: isLight ? "rgba(99,102,241,0.75)" : "rgba(167,139,250,0.7)",
+          borderColor: isLight ? "rgba(99,102,241,1)" : "rgba(167,139,250,1)",
+          borderWidth: 1, borderRadius: 8
+        }]
+      },
+      options: { ...baseOpts, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
+    });
+
+    new Chart(document.getElementById("c-dept"), {
+      type: "bar",
+      data: {
+        labels: ["Civil", "Electronics", "Computer Sci", "Mechanical", "Business"],
+        datasets: [{
+          data: [51.8, 50.3, 49.0, 48.7, 48.6],
+          backgroundColor: isLight ? "rgba(2,132,199,0.7)" : "rgba(56,189,248,0.65)",
+          borderColor: isLight ? "rgba(2,132,199,1)" : "rgba(56,189,248,1)",
+          borderWidth: 1, borderRadius: 8
+        }]
+      },
+      options: { ...baseOpts, indexAxis: "y", scales: { x: { min: 0, max: 100 }, y: { grid: { display: false } } } }
+    });
+
+    const scatterData = allStudents.map(s => ({ x: s.attendance, y: s.final_score }));
+    new Chart(document.getElementById("c-scatter"), {
+      type: "scatter",
+      data: {
+        datasets: [{
+          data: scatterData,
+          backgroundColor: isLight ? "rgba(99,102,241,0.6)" : "rgba(167,139,250,0.55)",
+          borderColor: isLight ? "rgba(99,102,241,0.9)" : "rgba(167,139,250,0.8)",
+          borderWidth: 1, pointRadius: 4
+        }]
+      },
+      options: { ...baseOpts, scales: { x: { title: { display: true, text: "Attendance %" }, min: 30, max: 100 }, y: { title: { display: true, text: "Final Score" }, min: 0, max: 100 } } }
+    });
+
+    new Chart(document.getElementById("c-risk"), {
+      type: "doughnut",
+      data: {
+        labels: ["Low Risk", "Medium Risk", "High Risk"],
+        datasets: [{
+          data: [4, 66, 80],
+          backgroundColor: ["rgba(16,185,129,0.75)", "rgba(245,158,11,0.75)", "rgba(239,68,68,0.75)"],
+          borderColor: ["rgba(16,185,129,1)", "rgba(245,158,11,1)", "rgba(239,68,68,1)"],
+          borderWidth: 1
+        }]
+      },
+      options: { ...baseOpts, cutout: "68%", plugins: { legend: { display: true, position: "bottom", labels: { color: textColor, padding: 14 } } } }
+    });
+
+    /* Live probe: sync with API if available */
+    fetch((API_BASE || '') + '/api/stats')
+      .then(res => res.json())
+      .then(s => {
+        if (!s.empty) {
+          document.getElementById('k-total').textContent = s.total;
+          document.getElementById('k-avg').textContent = s.avg_score;
+          document.getElementById('k-pass').textContent = s.pass_rate + "%";
+          document.getElementById('k-att').textContent = s.avg_attendance + "%";
+          document.getElementById('k-risk').textContent = s.at_risk;
+        }
+      }).catch(() => {});
+  </script>
+</body>
+</html>

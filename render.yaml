@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: student-performance-dashboard
+    env: python
+    buildCommand: pip install -r student_dashboard/requirements.txt
+    startCommand: cd student_dashboard && gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_USER
+        value: admin
+      - key: ADMIN_PASS
+        value: admin123
+      - key: ADMIN_PHONE
+        value: "+918600731792"
